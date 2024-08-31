@@ -137,7 +137,7 @@ def main():
     installation_options = ["Custom: Let me pick the latest versions of what is added"]
     
     questions = [
-        {
+        { 
             'type': 'list',
             'name': 'installation_method',
             'message': 'Choose how to install:',

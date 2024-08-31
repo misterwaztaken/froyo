@@ -26,6 +26,14 @@ os.makedirs(TEST_PATH, exist_ok=True)
 os.makedirs(BOOTLOADER_PAYLOADS_PATH, exist_ok=True)
 os.makedirs(BACKUP_PATH, exist_ok=True)
 
+# Get the latest release version from GitHub
+def get_latest_release(repo_url):
+    if repo_url.endswith(".zip"):
+        return "latest"
+    response = requests.get(repo_url)
+    response.raise_for_status()
+    return response.json()[0]['tag_name']
+
 # Get the list of releases from GitHub
 def get_releases(repo_url):
     if repo_url.endswith(".zip"):
@@ -35,20 +43,27 @@ def get_releases(repo_url):
     return response.json()
 
 # Display an interactive list of repositories to choose from
-def choose_repositories():
-    choices = [{'name': repo['name']} for repo in REPOS]
-    choices.append({'name': 'Next'})  # Option to proceed to version selection
+def choose_repositories(update_mode=False):
+    choices = []
+    for repo in REPOS:
+        latest_version = get_latest_release(repo['url'])
+        repo_name = f"{repo['name']} ({latest_version})"
+        choices.append({'name': repo_name})
+
+    if not update_mode:
+        choices.append({'name': 'Next'})  # Option to proceed to version selection
     questions = [
         {
             'type': 'checkbox',
             'name': 'repositories',
-            'message': 'Select repositories to install:',
+            'message': 'Select repositories to install:' if not update_mode else 'Select repositories to update:',
             'choices': choices,
             'pageSize': 10,
         }
     ]
     answers = prompt(questions)
-    return [repo for repo in REPOS if repo['name'] in answers['repositories']]
+    selected_names = [name.split(" ")[0] for name in answers['repositories']]
+    return [repo for repo in REPOS if repo['name'] in selected_names]
 
 # Display an interactive list of releases
 def choose_release(releases, message='Select a version to download:'):
@@ -134,7 +149,10 @@ def unzip_file(zip_path, repo_name, release_tag):
 # Main logic to handle the installation process
 def main():
     # Step 1: Choose the installation method
-    installation_options = ["Custom: Let me pick the latest versions of what is added"]
+    installation_options = [
+        "Custom: Let me pick the latest versions of what is added",
+        "Update: Update your current SD setup (refer to guides about compatible versions)"
+    ]
     
     questions = [
         { 
@@ -163,6 +181,20 @@ def main():
             zip_file = download_release(selected_release, repo['name'])
             if zip_file:
                 unzip_file(zip_file, repo['name'], selected_release['tag_name'])
+
+    elif installation_method == "Update: Update your current SD setup (refer to guides about compatible versions)":
+        # Update mode
+        selected_repositories = choose_repositories(update_mode=True)
+
+        if not selected_repositories:
+            print("No repositories selected for update.")
+            return
+
+        for repo in selected_repositories:
+            latest_release = get_releases(repo['url'])[0]  # Get the latest release
+            zip_file = download_release(latest_release, repo['name'])
+            if zip_file:
+                unzip_file(zip_file, repo['name'], latest_release['tag_name'])
 
 if __name__ == '__main__':
     main()
